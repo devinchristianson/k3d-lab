@@ -8,7 +8,7 @@ services:
       context: ./infra
       additional_contexts:
         lab: ./lab
-    image: devinchristianson/k3dlab:2.3
+    image: devinchristianson/k3dlab:2.4
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
