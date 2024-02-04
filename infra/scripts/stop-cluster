@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+if [[ $(bash check-cluster) == "Cluster is running" ]]; then 
+    k3d cluster stop $USERNAME
+fi

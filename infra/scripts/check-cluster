@@ -1,0 +1,10 @@
+#!/bin/bash
+CLUSTER=$(k3d cluster ls | (grep $USERNAME || true))
+
+if [[ -z "$CLUSTER" ]]; then
+    echo "Cluster does not exist"
+elif [[ $(echo $CLUSTER | awk '{print $2}') == 0* ]]; then
+    echo "Cluster is stopped"
+else
+    echo "Cluster is running"
+fi

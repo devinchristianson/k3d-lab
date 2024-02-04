@@ -1,0 +1,7 @@
+if [[ -n "${DEV}" ]]; then 
+    # if in dev mode, delete cluster
+    bash delete-cluster
+else
+    # if not in dev mode, stop cluster
+    bash stop-cluster 
+fi

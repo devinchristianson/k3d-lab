@@ -1,0 +1,6 @@
+[[ -f ~/.bashrc ]] && . ~/.bashrc
+if [[ ! -f ~/.kube/config ]] then 
+    bash create-cluster
+else 
+    bash start-cluster
+fi
