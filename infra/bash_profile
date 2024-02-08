@@ -1,6 +1,12 @@
 [[ -f ~/.bashrc ]] && . ~/.bashrc
-if [[ ! -f ~/.kube/config ]] then 
-    bash create-cluster
-else 
-    bash start-cluster
+if [ ! -d ~/.sessions ]; then
+  mkdir -p ~/.sessions;
 fi
+touch ~/.sessions/$BASHPID
+
+bash cluster start
+
+exit_session() {
+    . "$HOME/.bash_logout"
+}
+trap exit_session SIGHUP

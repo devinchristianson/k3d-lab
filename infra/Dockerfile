@@ -1,25 +1,33 @@
 FROM containerssh/agent AS agent
 
-FROM alpine
+FROM ubuntu:22.04
 
 # copy in containerssh-agent
 COPY --from=agent /usr/bin/containerssh-agent /usr/bin/containerssh-agent
 
 # add pre-reqs for required installs
-RUN apk add --update --no-cache curl bash jq yq git net-tools vim
+RUN DEBIAN_FRONTEND=noninteractive apt update \
+    && apt install -y curl bash jq git net-tools vim tmux bash-completion wget \
+    && apt clean
 
 # download and install kubectl
-RUN cd /tmp && VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)" \
+RUN set -e && cd "$(mktemp -d)" && VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)" \
     && curl -LO "https://dl.k8s.io/release/$VERSION/bin/linux/amd64/kubectl" \
     && curl -LO "https://dl.k8s.io/$VERSION/bin/linux/amd64/kubectl.sha256" \
     && echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c \
     && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # download and install k3d
-RUN wget -q -O - https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+RUN set -e && cd "$(mktemp -d)" && VERSION="$(wget https://github.com/k3d-io/k3d/releases/latest --server-response -O /dev/null 2>&1 | awk '/^\s*Location: /{DEST=$2} END{ print DEST}' | grep -oE '[^/]+$')" \
+    && curl -LO https://github.com/k3d-io/k3d/releases/download/$VERSION/k3d-linux-amd64 \
+    && curl -LO https://github.com/k3d-io/k3d/releases/download/$VERSION/checksums.txt \
+    && echo "$(cat checksums.txt | grep k3d-linux-amd64 | awk '{ print $1 }') k3d-linux-amd64" | sha256sum -c \
+    && install -o root -g root -m 0755 k3d-linux-amd64 /usr/local/bin/k3d \
+    && chmod u+s /usr/local/bin/k3d 
+    # because install doesnt allow setuid
 
 # download and install helm
-RUN cd /tmp && VERSION="$(curl -L -s https://get.helm.sh/helm-latest-version)" \
+RUN set -e && cd "$(mktemp -d)" && VERSION="$(curl -L -s https://get.helm.sh/helm-latest-version)" \
     && curl -LO "https://get.helm.sh/helm-$VERSION-linux-amd64.tar.gz" \ 
     && curl -LO "https://get.helm.sh/helm-$VERSION-linux-amd64.tar.gz.sha256sum" \
     && echo "$(cat helm-$VERSION-linux-amd64.tar.gz.sha256sum | awk '{ print $1 }')  helm-$VERSION-linux-amd64.tar.gz" | sha256sum -c \
@@ -37,12 +45,28 @@ COPY ./k3dconfig.yml /etc/k3dconfig.yml
 COPY ./scripts/. /usr/local/bin/
 RUN chmod +x /usr/local/bin/*
 
-# copy over bash config
-COPY ./bash_profile /root/.bash_profile
-COPY ./bash_logout /root/.bash_logout
-COPY ./bashrc /root/.bashrc
+RUN adduser --uid 832 --shell /bin/bash --disabled-password lab
+# allow apk usage by non-root users
+RUN chmod u+s "$(which apt)" "$(which apt-key)"
 
-WORKDIR /root
+USER lab
+
+RUN set -x; cd "$(mktemp -d)" \
+    && OS="$(uname | tr '[:upper:]' '[:lower:]')" \ 
+    && ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" \
+    && KREW="krew-${OS}_${ARCH}" \
+    && curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" \
+    && tar zxvf "${KREW}.tar.gz" \
+    && ./"${KREW}" install krew
+
+WORKDIR /home/lab
+
+RUN mkdir .kube && chown -R lab:lab .kube/
+
+# copy over bash config
+COPY ./bash_profile .bash_profile
+COPY ./bash_logout .bash_logout
+COPY ./bashrc .bashrc
 
 # copy in lab
-COPY --from=lab . /root
+COPY --chown=lab:lab --from=lab . /home/lab

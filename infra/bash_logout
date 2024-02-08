@@ -1,7 +1,13 @@
-if [[ -n "${DEV}" ]]; then 
-    # if in dev mode, delete cluster
-    bash delete-cluster
-else
-    # if not in dev mode, stop cluster
-    bash stop-cluster 
+rm ~/.sessions/$BASHPID
+# check the number of active session files
+NUMSESSIONS=$(shopt -s nullglob; files=(~/.sessions/*); echo ${#files[@]};)
+# if there are no active sessions left, close down cluster
+if [[ $NUMSESSIONS -eq 0 ]]; then 
+    if [[ -n "${DEV}" ]]; then 
+        # if in dev mode, delete cluster
+        bash cluster delete
+    else
+        # if not in dev mode, stop cluster
+        bash cluster stop
+    fi
 fi

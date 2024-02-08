@@ -1,1 +1,4 @@
-PS1='${USERNAME}@${ENVIRONMENT}:\w\$ '
+export PS1='${USERNAME}@${ENVIRONMENT}:\w\$ '
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+source /etc/profile.d/bash_completion.sh
+source <(kubectl completion bash)

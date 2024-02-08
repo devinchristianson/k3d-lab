@@ -1,0 +1,68 @@
+#!/bin/bash
+set -e
+status() {
+    # some shenanigans to check if the cluster status & deal with grep's non-zero exit codes
+    CLUSTER=$(k3d cluster ls | (grep $USERNAME || [ "$?" == "1" ])) 
+
+    if [[ -z "$CLUSTER" ]]; then
+        echo "Cluster does not exist"
+    elif [[ $(echo $CLUSTER | awk '{print $2}') == 0* ]]; then
+        echo "Cluster is stopped"
+    else
+        echo "Cluster is running"
+    fi
+}
+
+ensure_config() {
+    if [[ -f ~/.kube/config ]]; then 
+        k3d kubeconfig get $USERNAME > ~/.kube/config
+        if [[ -n "${DEV}" ]]; then 
+            # if in dev mode, replace to internal hostname
+            sed -i -E "s/server:.*/server: https:\/\/k3d-$USERNAME-serverlb:6443/g" ~/.kube/config
+        else
+            # otherwise, rewrite to use port 6443
+            sed -i -E 's/server:(.*):.*$/server: \1:6443/g' ~/.kube/config
+        fi
+    fi
+}
+
+create() {
+    # create cluster from config, without generating kubeconfig
+    k3d cluster create \
+        --kubeconfig-update-default=false --kubeconfig-switch-context=false \
+        --config /etc/k3dconfig.yml | grep -v KUBECONFIG
+    echo "Cluster has been created!"
+}
+
+STATUS=$(status)
+case "$1" in
+    start)
+        # ensure it's created 
+        if [[ $STATUS == "Cluster does not exist" ]]; then 
+            create
+        elif [[ $STATUS == "Cluster is stopped" ]]; then 
+            k3d cluster start $USERNAME
+        fi
+        ensure_config
+        ;;
+    stop)
+        if [[ $STATUS == "Cluster is running" ]]; then 
+            k3d cluster stop $USERNAME
+        fi
+        ;;
+    create)
+        if [[ $STATUS == "Cluster does not exist" ]]; then 
+            create
+        fi
+        ;;
+    delete)
+        k3d cluster delete --config /etc/k3dconfig.yml
+        echo "Server is deleted"
+        ;;
+    status)
+        echo $STATUS
+        ;;
+    *)
+        echo "cluster (status|start|stop|create|delete)"
+        ;;
+esac
